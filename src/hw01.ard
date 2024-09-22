@@ -46,13 +46,13 @@
    if False _ e = e
 -}
 
-\func if (c l r : Bool) : Bool \elim c
+\func ifBool (c l r : Bool) : Bool \elim c
   | true => l
   | false => r
 
 -- 5. Определите || через if.
 
-\func \infixr 2 || (x y : Bool) : Bool => if x x y
+\func \infixr 2 || (x y : Bool) : Bool => ifBool x x y
 
 -- 6. Определите возведение в степень и факториал для натуральных чисел.
 
@@ -68,16 +68,16 @@
 
 -- 7. Определите mod и gcd.
 
---\func mod (x y : Nat) : Nat => aux x x y
---    \where {
---      \func if : Bool -> Nat -> Nat -> Nat
---        | true, x, _ => x
---        | false, _, y => y
---      \func aux (fuel x y : Nat) : Nat \elim fuel
---        | 0 => 0
---        | suc fuel => if (x < y) x (aux fuel (x - y) y)
---    }
---
---\func res => mod 8 3
+\func mod (x y : Nat) : Nat => aux x x y
+    \where {
+      \func aux (fuel x y : Nat) : Nat \elim fuel
+        | 0 => 0
+        | suc fuel => if (x < y) x (aux fuel (x - y) y)
+    }
 
-\func gcd (x y : Nat) => {?}
+\func gcd (x y : Nat) : Nat => aux (x + y) x y \where {
+  \func aux (fuel x y : Nat) : Nat \elim fuel
+    | 0 => 1
+    | suc fuel => \let | m => mod x y
+                  \in if (0 < m) (aux fuel y m) y
+}
