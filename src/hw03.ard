@@ -26,8 +26,10 @@
 -- Это утверждение будет полезно для доказательства.
 \func reverse++ {A : \Type} (xs ys : List A) : reverse (xs ++ ys) = reverse ys ++ reverse xs
   \elim xs
-    | nil => {?}
-    | a :: xs => {?}
+    | nil => inv ++_nil
+    | a :: xs => \let l => pmap (`++ a :: nil) (reverse++ xs ys)
+                    | a => ++-assoc (reverse ys) (reverse xs) (a :: nil)
+                 \in rewriteI a l
 
 -- Доказал сначала не увидев утверждения reverse++
 \func reverse-isInvolutive {A : \Type} (xs : List A) : reverse (reverse xs) = xs
@@ -45,22 +47,53 @@
 
 -- 5. Докажите дистрибутивность умножения над сложением для натуральных чисел.
 
-\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n => {?}
+\func rdistr (n m k : Nat) : (m + k) * n = m * n + k * n \elim n
+  | 0 => idp
+  | suc n => \let rec => rdistr n m k
+                | map => pmap (`+ (m + k)) rec
+                -- А дальше возня с коммутативностью и ассоциативностью сложения
+                | lem => lemma (k * n) m k
+                | as1 => +-assoc (m * n) (k * n) (m + k)
+                | rw1 => rewrite as1 map
+                | rw2 => rewrite lem rw1
+                | as2 => +-assoc (m * n) m (k * n + k)
+                -- Почему если я вставляю выражение ниже сразу после \in, то получаю ошибку?
+                | res => rewriteI as2 rw2
+             \in res
+  \where {
+    \func lemma (a b c : Nat) : a + (b + c) = b + (a + c) \elim c
+      | 0 => +-comm a b
+      | suc c => pmap suc (lemma a b c)
+  }
 
-\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k => {?}
+
+\func ldistr (n m k : Nat) : n * (m + k) = n * m + n * k \elim k
+  | 0 => idp
+  | suc k => \let rec => ldistr n m k
+                | map => pmap (`+ n) rec
+                | as => +-assoc (n * m) (n * k) n
+                | res => rewrite as map
+             \in res
 
 -- 6. Определите конгруэнтность для функций двух аргументов через transport.
 --    Можно использовать любые функции, определенные через transport.
 
-\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' => {?}
+\func pmap2 {A B C : \Type} (f : A -> B -> C) {a a' : A} (p : a = a') {b b' : B} (q : b = b') : f a b = f a' b' =>
+  -- pmap можно определить через transport
+  \let pb => pmap (f a) q
+     | pa => pmap (\lam a => f a b') p
+     | res => rewrite pa pb
+  \in res
 
 -- 7. Докажите, что transport выражается через pmap и repl и наоборот.
 
 -- repl говорит, что если у нас есть два равных типа, то у нас есть функция из одного во второй.
 -- Определите repl через transport.
 
-\func repl {A B : \Type} (p : A = B) (a : A) : B => {?}
+\func repl {A B : \Type} (p : A = B) (a : A) : B =>
+  transport (\lam a => a) p a
 
 -- Определите transport через repl и pmap.
 
-\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+\func transport' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' =>
+  repl (pmap B p) b
