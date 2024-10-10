@@ -1,7 +1,10 @@
 \import Data.Bool
 \import Data.List
+\import Paths
 \import lect02 (T)
 \import lect04 \hiding (nil, tail)
+\open lect04 (lookup \as lookup')
+\open Nat (+)
 
 -- 1. Напишите функцию lookup, которая принимает List A и натуральное число и возвращает элемент по заданому индексу.
 --    В общем случае эту функцию определить невозможно, т.к. индекс может быть больше, чем число элементов в списке.
@@ -45,7 +48,6 @@
   | 0, xs, ys => ()
   | suc n, (x, xs), (y, ys) => (f x y, zipWith f xs ys)
 
-
 \func zipWith' {A B C : \Type} (f : A -> B -> C) {n : Nat} (xs : Vec A n) (ys : Vec B n) : Vec C n \elim n, xs, ys
   | 0, Vec.nil, Vec.nil => Vec.nil
   | suc n, Vec.cons x xs, Vec.cons y ys => Vec.cons (f x y) (zipWith' f xs ys)
@@ -75,9 +77,10 @@
 \func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n)
   | 0, leafZ => fzero
   | suc n, leafS => fzero
-  | suc k, nodeT t1 a t2 => \let h1 => height k t1
-                               | h2 => height k t2
-                            \in fsuc (finMax h1 h2)
+  | suc k, nodeT t1 a t2 =>
+    \let h1 => height k t1
+         | h2 => height k t2
+    \in fsuc (finMax h1 h2)
 
 -- 7. Функции Fin n -> A соответствуют спискам элементов A длины n.
 --     Функция, преобразующая Vec A n в Fin n -> A, была реализована на лекции.
@@ -108,29 +111,30 @@
 -- транспонирование матриц
 
 \func lookupM {A : \Type} {n m : Nat} (M : Mat A n m) (r : Fin n) (c : Fin m) : A =>
-  lect04.lookup (lect04.lookup M r) c
+  lookup' (lookup' M r) c
 
 \func transpose {A : \Type} {n m : Nat} (M : Mat A n m) : Mat A m n =>
-    coinM (\lam r c => lookupM M c r)
+  coinM (\lam r c => lookupM M c r)
 
 -- сложение матриц
 
 \func matAdd {A : \Type} (add : A -> A -> A) (n m : Nat) (M N : Mat A n m) : Mat A n m =>
-    coinM (\lam r c => add (lookupM M r c) (lookupM N r c))
+  coinM (\lam r c => add (lookupM M r c) (lookupM N r c))
 
 -- умножение матриц
 
 -- z ─ нейтральный элемент по сложению.
+
 \func foldl {A B : \Type} (f : B -> A -> B) (z : B) {n : Nat} (xs : Vec A n) : B \elim n, xs
   | 0, Vec.nil => z
   | suc n, Vec.cons x xs => foldl f (f z x) xs
 
 \func matMul {A : \Type} (z : A) (add mul : A -> A -> A) (n m k : Nat) (M : Mat A n m) (N : Mat A m k) : Mat A n k =>
   \let NT => transpose N \in coinM (\lam r c =>
-    \let row => lect04.lookup M r
-       | col => lect04.lookup NT c
-       | prod => zipWith' mul row col
-    \in foldl add z prod)
+      \let row => lookup' M r
+           | col => lookup' NT c
+           | prod => zipWith' mul row col
+      \in foldl add z prod)
 
 -- 9. Определите факториал через Nat-rec.
 
@@ -139,7 +143,12 @@
 
 -- 10. Докажите ассоциативность сложения для натуральных чисел через Nat-elim.
 
-
+\func +-assoc (n m k : Nat) : n + (m + k) = (n + m) + k =>
+  Nat-elim
+      (\lam k' => n + (m + k') = (n + m) + k')
+      idp
+      (\lam _ p => pmap suc p)
+      k
 
 -- 11. Определите рекурсор и элиминатор для D.
 
@@ -148,6 +157,23 @@
   | con2 D D
   | con3 (Nat -> D)
 
+\func D-elim (P : D -> \Type)
+             (z : \Pi (n : Nat) -> P (con1 n))
+             (s1 : \Pi (d1 d2 : D) -> P d1 -> P d2 -> P (con2 d1 d2))
+             (s2 : \Pi (g : Nat -> D) -> (\Pi (n : Nat) -> P (g n)) -> P (con3 g))
+             (d : D) : P d \elim d
+    | con1 n => z n
+    | con2 d1 d2 => s1 d1 d2 (D-elim P z s1 s2 d1) (D-elim P z s1 s2 d2)
+    | con3 g => s2 g (\lam n => D-elim P z s1 s2 (g n))
+
+\func D-rec (P : \Type)
+            (z : Nat -> P)
+            (s1 : D -> D -> P -> P -> P)
+            (s2 : (Nat -> D) -> (Nat -> P) -> P)
+            (d : D) : P =>
+  D-elim (\lam _ => P) z s1 s2 d
+
+
 {- To check that the definition of D-elim and D-rec is correct, you can try to implement foo using D-rec.
 \func foo (d : D) : Nat
   | con1 n => n
@@ -155,4 +181,21 @@
   | con3 g => foo (g (foo (g 100)))
 -}
 
+\func foo (d : D) : Nat =>
+  D-rec Nat (\lam n => n) (\lam _ _ => add) (\lam _ r => r (r 100)) d
+
 -- 12. Определите рекурсор и элиминатор для List.
+
+\func List-elim {A : \Type}
+                (P : List A -> \Type)
+                (z : P nil)
+                (s : \Pi (x : A) (xs : List A) -> P xs -> P (x :: xs))
+                (xs : List A) : P xs \elim xs
+    | nil => z
+    | x :: xs => s x xs (List-elim P z s xs)
+
+\func List-rec {A : \Type}
+               (P : \Type)
+               (z : P)
+               (s : A -> List A -> P -> P)
+               (xs : List A) : P => List-elim (\lam _ => P) z s xs
