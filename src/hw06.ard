@@ -1,12 +1,18 @@
+\import Algebra.Meta
 \import Data.Bool
 \import Data.List (List, length)
 \import Logic
+\import Paths
+\import Paths.Meta
 \import lect06
+\import Meta
 \open Nat(+,*)
 
 -- 1. Определите предикат принадлежности элемента списку.
 
-\data In {A : \Type} (a : A) (xs : List A)
+\data In {A : \Type} (a : A) (xs : List A) \elim xs
+  | b List.:: xs => Found (a = b)
+  | _ List.:: xs => Later (In a xs)
 
 -- Optional:
 -- 2. Докажите эквивалентность четырех различных определений LessOrEq: lessOrEq, lessOrEq', LessOrEq и LessOrEq'.
@@ -15,6 +21,9 @@
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
 
 \data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | base (R x y)
+  | refl (x = y)
+  | trans (z : A) (R x z) (ReflTransClosure R z y)
 
 -- 4. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
 
@@ -22,26 +31,79 @@
 
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
   : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
-  => {?}
+  => \lam _ _ => (
+    \lam r => base r,
+    closure=>R
+  )
+  \where {
+    \func closure=>R {x y : A} (r : ReflTransClosure R x y) : R x y \elim r
+      | base r => r
+      | ReflTransClosure.refl p => rewriteI p (refl x)
+      | ReflTransClosure.trans z r n => trans x z y r (closure=>R n)
+  }
 
 -- 5. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
 
+\data Sublist {A : \Type} (xs ys : List A) \elim xs, ys
+  | List.nil, _ => NilSublist
+  | x List.:: xs, y List.:: ys => ConsSublist (x = y) (Sublist xs ys)
+  | xs, y List.:: ys => SkipSublist (Sublist xs ys)
+
 -- 6. Докажите, что Sublist (filter p xs) xs для любых p и xs.
+
+\func filter-sublist-lem {A : \Type}
+    (p : A -> Bool)
+    (xs : List A)
+    : Sublist (filter p xs) xs \elim xs
+  | List.nil => NilSublist
+  | a List.:: xs => cases (p a) \with {
+    | false => SkipSublist (filter-sublist-lem p xs)
+    | true => ConsSublist idp (filter-sublist-lem p xs)
+  }
 
 -- 7. Определите filter через if, а не через \case.
 --     Докажите для этой версии filter лемму filter-lem.
 
-\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A => {?}
+\func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A
+  \elim xs
+    | List.nil => List.nil
+    | a List.:: xs =>
+      \let tail => filter' p xs \in
+        if (p a) (a List.:: tail) tail
 
-\func filter-lem {A : \Type} (p : A -> Bool) (xs : List A) : LessOrEq (length (filter' p xs)) (length xs) => {?}
+\func filter-lem {A : \Type}
+                 (p : A -> Bool)
+                 (xs : List A) :
+  LessOrEq (length (filter' p xs)) (length xs) \elim xs
+  | List.nil => zero<=_
+  | a List.:: xs => cases (p a) \with {
+    | false => <=-step-lem (filter-lem p xs)
+    | true => suc<=suc (filter-lem p xs)
+  }
+
 
 -- 8. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
+
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x
+  => \case \elim x, f true \as ft, f false \as ff,
+           idp : _ = ff,
+           idp : _ = ft \with {
+    | false, false, false, _, _ => cong
+    | false, false, true, _, _ => cong
+    | false, true, false, _, _ => cong
+    | false, true, true, _, _ => cong
+    | true, false, false, _, _ => cong
+    | true, false, true, _, _ => cong
+    | true, true, false, _, _ => cong
+    | true, true, true, _, _ => cong
+  }
 
 -- 9. Докажите, что предикат isEven разрешим.
 
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => {?}
+\func isEven-dec : DecPred isEven => \lam a =>
+
 
 -- 10. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
