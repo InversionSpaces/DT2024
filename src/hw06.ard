@@ -1,12 +1,14 @@
 \import Algebra.Meta
+\import Arith.Nat (pred)
 \import Data.Bool
 \import Data.List (List, length)
 \import Logic
 \import Paths
 \import Paths.Meta
+\import lect05 (funExt)
 \import lect06
 \import Meta
-\open Nat(+,*)
+\open Nat (+, *)
 
 -- 1. Определите предикат принадлежности элемента списку.
 
@@ -30,11 +32,10 @@
 \func \infix 4 <-> (A B : \Type) => \Sigma (A -> B) (B -> A)
 
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
-  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
-  => \lam _ _ => (
-    \lam r => base r,
-    closure=>R
-  )
+  : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y => \lam _ _ => (
+  \lam r => base r,
+  closure=>R
+)
   \where {
     \func closure=>R {x y : A} (r : ReflTransClosure R x y) : R x y \elim r
       | base r => r
@@ -52,9 +53,9 @@
 -- 6. Докажите, что Sublist (filter p xs) xs для любых p и xs.
 
 \func filter-sublist-lem {A : \Type}
-    (p : A -> Bool)
-    (xs : List A)
-    : Sublist (filter p xs) xs \elim xs
+                         (p : A -> Bool)
+                         (xs : List A)
+  : Sublist (filter p xs) xs \elim xs
   | List.nil => NilSublist
   | a List.:: xs => cases (p a) \with {
     | false => SkipSublist (filter-sublist-lem p xs)
@@ -65,11 +66,11 @@
 --     Докажите для этой версии filter лемму filter-lem.
 
 \func filter' {A : \Type} (p : A -> Bool) (xs : List A) : List A
-  \elim xs
-    | List.nil => List.nil
-    | a List.:: xs =>
-      \let tail => filter' p xs \in
-        if (p a) (a List.:: tail) tail
+\elim xs
+  | List.nil => List.nil
+  | a List.:: xs =>
+    \let tail => filter' p xs \in
+      if (p a) (a List.:: tail) tail
 
 \func filter-lem {A : \Type}
                  (p : A -> Bool)
@@ -84,37 +85,74 @@
 
 -- 8. Закончите определение функции \func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x из лекции.
 
-\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x
-  => \case \elim x, f true \as ft, f false \as ff,
-           idp : _ = ff,
-           idp : _ = ft \with {
-    | false, false, false, _, _ => cong
-    | false, false, true, _, _ => cong
-    | false, true, false, _, _ => cong
-    | false, true, true, _, _ => cong
-    | true, false, false, _, _ => cong
-    | true, false, true, _, _ => cong
-    | true, true, false, _, _ => cong
-    | true, true, true, _, _ => cong
-  }
+\func BoolFuncLem (f : Bool -> Bool) (x : Bool) : f (f (f x)) = f x => \case \elim x, f true \as ft, f false \as ff,
+                                                                             idp : _ = ff,
+                                                                             idp : _ = ft \with {
+  | false, false, false, _, _ => cong
+  | false, false, true, _, _ => cong
+  | false, true, false, _, _ => cong
+  | false, true, true, _, _ => cong
+  | true, false, false, _, _ => cong
+  | true, false, true, _, _ => cong
+  | true, true, false, _, _ => cong
+  | true, true, true, _, _ => cong
+}
 
 -- 9. Докажите, что предикат isEven разрешим.
 
 \func isEven (n : Nat) => \Sigma (k : Nat) (n = 2 * k)
 
-\func isEven-dec : DecPred isEven => \lam a =>
+\func isEven-dec : DecPred isEven => decider \where {
+  \func decider (a : Nat) : Decide (isEven a)
+    | 0 => yes (0, idp)
+    | 1 => no (\lam even => \case \elim even \with {
+      | (0, p) => \case p
+      | (suc k, p) => \case p
+    })
+    | suc (suc a) => \case decider a \as d \with {
+      | yes p => yes (lemma-forw p)
+      | no n => no (\lam p => n (lemma-back p))
+    }
 
+  \func lemma-forw {a : Nat} (p : isEven a) : isEven (suc (suc a)) \elim a, p
+    | 0, _ => (1, idp)
+    | suc a, (0, sa=0) => \case sa=0
+    | suc a, (suc k, sa=2k) => (suc (suc k), pmap suc (pmap suc sa=2k))
+
+  \func lemma-back {a : Nat} (p : isEven (suc (suc a))): isEven a \elim a, p
+    | 0, _ => (0, idp)
+    | suc a, (0, sa=0) => \case sa=0
+    | suc a, (suc k, sa=2k) => (k, pmap pred (pmap pred sa=2k))
+}
 
 -- 10. Докажите, что функции FromBoolToDec и FromDecToBool взаимно обратны.
 
-\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p => {?}
+\func bdb {A : \Type} (p : A -> Bool) : FromDecToBool (FromBoolToDec p) = p =>
+  -- Вроде unfold не было на лекции, я списал его с интернета
+  -- Как заставить раскрыть тип изученными средствами я не понял
+  unfold (FromDecToBool, FromBoolToDec) (funExt (\lam _ => Bool) (
+    \lam a => cases (p a) \with {
+      | false => idp
+      | true => idp
+    }))
 
 -- Мы не можем доказать, что FromBoolToDec (FromDecToBool P) = P, но мы можем доказать более слабое утверждение: эти предикаты логически эквивалентны.
 -- Для этого введем эквивалентность предикатов.
 
 \func dbd {A : \Type} (P : \Sigma (P : A -> \Type) (DecPred P))
-  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x
-  => {?}
+  : \Pi (x : A) -> (FromBoolToDec (FromDecToBool P)).1 x <-> P.1 x =>
+  \lam a => (
+    \lam left => \let l => unfold (FromBoolToDec, FromDecToBool) left \in
+      \case P.2 a \as pa, idp : _ = pa \with {
+        | yes p, _ => p
+        | no n, pa=no => \case rewrite pa=no l
+      },
+    \lam right => unfold (FromDecToBool, FromBoolToDec) (
+      cases (P.2 a) \with {
+        | yes _ => ()
+        | no n => n right
+      })
+  )
 
 -- Optional:
 -- 11. Парадокс Рассела показывает, что не существует множества всех множеств.
@@ -126,5 +164,6 @@
 -- Верно, что в общем случае существование такого утверждения влечет противоречие.
 -- Это легко доказать при помощи исключенного третьего, но утверждение верно и без него.
 -- Докажите этот факт.
-\func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty
-  => {?}
+
+\func contrProp {A : \Type} (p : A -> Not A) (q : Not A -> A) : Empty =>
+  \let sa => q (\lam a => p a a) \in p sa sa
