@@ -119,7 +119,12 @@
   | return-right-id x => cases x \with {
     | state' _x => idp
   }
-  | bind-assoc x f g => \case \elim x \with {
-    | state' _x => pmap state' (ext {?})
+  | bind-assoc x f _ => \case \elim x \with {
+    | state' tx => pmap state' (ext (
+      \lam s => cases (tx s) \with {
+        | (s', a) => cases (f a) \with {
+          | state' tf => idp
+        }
+      }
+    ))
   }
-}
