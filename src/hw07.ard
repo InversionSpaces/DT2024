@@ -52,21 +52,74 @@
   | Functor.fmap f => \lam fa => fa >>= (\lam a => return (f a))
   | Functor.fmap-id => return-right-id
   | Functor.fmap-comp f g x =>  \let fr => \lam a => return (f a)
-                                     | gr => \lam a => return (g a)
-                                     | assoc => bind-assoc x fr gr
-                                     | rli => path (\lam i => \lam a => return-left-id (f a) gr @ i)
-                                     | bindx => pmap (>>= x) rli
-                                     | result => rewrite assoc bindx
+                                   | gr => \lam a => return (g a)
+                                   | assoc => bind-assoc x fr gr
+                                   | rli => path (\lam i => \lam a => return-left-id (f a) gr @ i)
+                                   | bindx => pmap (>>= x) rli
+                                   | result => rewrite assoc bindx
                                 \in inv result
 
 -- 6. Определите \instance Monad для Maybe.
 
-\instance MaybeMonad : Monad Maybe => {?}
+\instance MaybeMonad : Monad Maybe
+  | return => just
+  | >>= a f => \case \elim a \with {
+    | nothing => nothing
+    | just x => f x
+  }
+  | return-left-id _ _ => idp
+  | return-right-id a => \case \elim a \with {
+    | nothing => idp
+    | just a => idp
+  }
+  | bind-assoc a f _ => \case \elim a \with {
+    | nothing => idp
+    | just a => \case f a \with {
+      | nothing => idp
+      | just a1 => idp
+    }
+  }
 
 -- 7. Определите \instance Monad для State и State'.
 
 \record State (S A : \Type)
   | state : S -> \Sigma S A
 
+\func lift {S A : \Type} (f : S -> \Sigma S A) : State S A =>
+  \new State S A \lam s => f s
+
+\instance StateMonad (S : \Set) : Monad (State S)
+  | return a => lift (\lam s => (s, a))
+  | >>= x f => lift(\lam s => \let (s', a) => state {x} s
+                                 | (s'', b) => state {f a} s'
+                              \in (s'', b))
+  | return-left-id _ _ => idp
+  | return-right-id _ => idp
+  | bind-assoc _ _ _ => idp
+
 \data State' (S A : \Type)
   | state' (S -> \Sigma S A)
+
+\instance State'Monad (S : \Set) : Monad (State' S)
+  | return a => state' (\lam s => (s, a))
+  | >>= (state' x) f =>  state' (\lam s =>
+      \let (s', a') => x s \in \case f a' \with {
+        | state' x' => x' s'
+      }
+  )
+  | return-left-id x f => cases (f x) \with {
+    | state' x' => idp
+  }
+--     --   Как в возвращаемом типе раскрыть (f x) без cases?
+--     \case f x \as fx, idp : _ = fx
+--     \return state' (\lam s => \case f x \with { | state' x' => x' s}) = f x
+--     \with {
+--       | state' x', p => {?}
+--     }
+  | return-right-id x => cases x \with {
+    | state' _x => idp
+  }
+  | bind-assoc x f g => \case \elim x \with {
+    | state' _x => pmap state' (ext {?})
+  }
+}
