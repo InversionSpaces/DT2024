@@ -1,5 +1,9 @@
 \import Data.Bool
 \import Data.List \hiding (headDef)
+\import Function.Meta
+\import Meta
+\import Paths
+\import Paths.Meta
 \import hw06
 \import lect08
 \import Order.LinearOrder
@@ -9,6 +13,58 @@
 --    * filter p xs является подсписком xs
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
+
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | a :: xs => \case p a \with {
+    | true => a :: filter p xs
+    | false => filter p xs
+  }
+
+\func filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+  | nil => NilSublist
+  | a :: xs => mcases \with {
+    | true => ConsSublist idp (filter-sublist p xs)
+    | false => SkipSublist (filter-sublist p xs)
+  }
+
+\type ForAll {A : \Type} (p : A -> Bool) (xs : List A) => \Pi (a : A) -> In a xs -> So (p a)
+
+\func filter-correct {A : \Type}
+                     (p : A -> Bool)
+                     (xs : List A) : ForAll p (filter p xs) \elim xs
+  | nil => \lam _ in => \case in
+  | a :: xs => cases (p a arg addPath) \with {
+    | false, _ => filter-correct p xs
+    | true, pa=t => lemma p a (rewrite pa=t ()) (filter p xs) (filter-correct p xs)
+  }
+  \where {
+    \func lemma {A : \Type}
+                (p : A -> Bool)
+                (a : A)
+                (pa : So (p a))
+                (xs : List A)
+                (fa : ForAll p xs) : ForAll p (a :: xs) =>
+      \lam b bin => \case bin \with {
+        | Found b=a => rewrite b=a pa
+        | Later lin => fa b lin
+      }
+  }
+
+\func filter-max {A : \Type}
+                 {p : A -> Bool}
+                 {xs ys : List A}
+                 (sub : Sublist ys xs)
+                 (fays : ForAll p ys) : Sublist ys (filter p xs) \elim xs, ys, sub
+  | xs, nil, NilSublist => NilSublist
+  | x :: xs, y :: ys, ConsSublist y=x sub => cases (p x arg addPath) \with {
+    | true, _ => ConsSublist y=x (filter-max sub (\lam a i => fays a (Later i)))
+    | false, px=f => \case rewrite (y=x,px=f) (fays y (Found idp))
+  }
+  | y :: xs, ys, SkipSublist sub => mcases \with {
+    | true => SkipSublist (filter-max sub fays)
+    | false => filter-max sub fays
+  }
 
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
 
