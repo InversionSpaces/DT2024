@@ -1,6 +1,6 @@
 \import Algebra.Meta
 \import Data.Bool
-\import Data.List \hiding (headDef)
+\import Data.List
 \import Data.Or
 \import Meta
 \import Paths
@@ -133,7 +133,18 @@
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
 \func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
-  => {?}
+  => rewrite ((perm-sort l (sort l)).1 p) (sort-lemma (sort l) s)
+  \where {
+    \func sort-lemma {A : Dec} (l : List A) (s : Sorted l) : l = Insertion.sort l
+      | nil, sorted-nil => idp
+      | a :: ls, sorted-:: a<=hls s => rewriteI (sort-lemma ls s) (insert-lemma a ls a<=hls)
+
+    -- Не понял как разкрыть headDef прямо внутри sort-lemma, поэтому вынес в отдельную лемму
+    \func insert-lemma {A : Dec} (a : A) (ls : List A)
+                       (a<=hls : a <= headDef a ls) : a :: ls = Insertion.sort.insert a ls \elim ls
+      | nil => idp
+      | _ :: _ => rewrite (dec<=_reduce a<=hls) idp
+  }
 
 -- 4. Определите факториал через хвостовую рекурсию.
 --    Докажите, что он равен обычному определению факториала.
