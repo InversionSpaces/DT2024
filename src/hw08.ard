@@ -1,6 +1,7 @@
+\import Algebra.Meta
 \import Data.Bool
 \import Data.List \hiding (headDef)
-\import Function.Meta
+\import Data.Or
 \import Meta
 \import Paths
 \import Paths.Meta
@@ -67,6 +68,67 @@
   }
 
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
+
+\func perm-symm {A : \Type} {ls rs : List A} (p : Perm ls rs) : Perm rs ls \elim ls, rs, p
+  | nil, nil, perm-nil => perm-nil
+  | a :: ls, b :: rs, perm-:: p plsrs => perm-:: (inv p) (perm-symm plsrs)
+  | ls, rs, perm-trans plsys pysrs => perm-trans (perm-symm pysrs) (perm-symm plsys)
+  | a :: (an :: ls), b :: (bn :: rs), perm-swap a=bn an=b ls=rs => perm-swap (inv an=b) (inv a=bn) (inv ls=rs)
+
+\func perm-sort {A : Dec} (ls rs : List A) : Perm ls rs <-> (Insertion.sort ls = Insertion.sort rs)
+  => (forward, backward)
+  \where {
+    \func forward {A : Dec}
+                  {ls rs : List A}
+                  (p : Perm ls rs) : Insertion.sort ls = Insertion.sort rs
+    \elim ls, rs, p
+      | nil, nil, perm-nil => idp
+      | a :: ls, b :: rs, perm-:: a=b plsrs => rewrite (a=b,forward plsrs) cong
+      | ls, rs, perm-trans plsys pysrs => rewrite (forward plsys,forward pysrs) idp
+      | a :: (an :: ls), b :: (bn :: rs), perm-swap a=bn an=b ls=rs =>
+        rewrite (ls=rs,a=bn,an=b) (insert-comm bn b (Insertion.sort rs))
+      \where {
+        \open Insertion.sort (insert)
+        \func insert-comm {A : Dec}
+                          (a b : A)
+                          (xs : List A) : insert a (insert b xs) = insert b (insert a xs) \elim xs
+          | nil => mcases idp \with {
+            | inl a<b, inl b<a => \case notLess (<_<= a<b) b<a
+            | inr a<=b, inr b<=a => rewrite (LinearOrder.<=-antisymmetric b<=a a<=b) idp
+          }
+          | x :: xs => mcases \with {
+            -- Делаю dec reduce 10 раз
+            | inl x<b, inl x<a => rewrite (dec<_reduce x<a, dec<_reduce x<b) (pmap (:: x) (insert-comm a b xs))
+            | inl x<b, inr a<=x => rewrite (dec<_reduce x<b, dec<=_reduce a<=x, dec<_reduce (LinearOrder.<∘r a<=x x<b)) idp
+            | inr b<=x, inl x<a => rewrite (dec<=_reduce b<=x, dec<_reduce (LinearOrder.<∘r b<=x x<a), dec<_reduce x<a) idp
+            | inr b<=x, inr a<=x => rewrite (dec<=_reduce b<=x, dec<=_reduce a<=x) (cases (dec<_<= a b) \with {
+              | inl a<b => rewrite (dec<=_reduce (<_<= a<b)) idp
+              | inr b<=a => mcases idp \with {
+                | inr a<=b => rewrite (LinearOrder.<=-antisymmetric b<=a a<=b) idp
+              }
+            })
+          }
+
+        -- -- А эту лемму можно доказать? У меня не получилось
+        --       \func lemma {A : Dec}
+        --                   (ls rs : List A)
+        --                   (lss : Sorted ls)
+        --                   (rss : Sorted rs)
+        --                   (p : Perm ls rs) : ls = rs
+        --         | nil, nil, sorted-nil, sorted-nil, _ => idp
+        --         | nil, a :: rs1, sorted-nil, sorted-:: _x rss, perm-trans p1 p2 => {?}
+        --         | a :: ls1, nil, sorted-:: _x lss, sorted-nil, perm-trans p1 p2 => {?}
+        --         | a :: ls, b :: rs, sorted-:: _ lss, sorted-:: _ rss, perm-:: a=b plsrs =>
+        --           rewrite a=b (pmap (:: b) (lemma ls rs lss rss plsrs))
+        --         | a :: ls, b :: rs, sorted-:: a<=hls lss, sorted-:: b<=hrs rss, perm-trans palsys pysbrs =>
+        --           \case Dec
+        --         | a :: (a1 :: ls1), b :: (b1 :: rs1), sorted-:: _x lss, sorted-:: _x1 rss, perm-swap p1 p2 p3 => {?}
+        --     }
+      }
+
+    \func backward {A : Dec} {ls rs : List A} (p : Insertion.sort ls = Insertion.sort rs) : Perm ls rs =>
+      perm-trans (Insertion.sort-perm ls) (rewrite p (perm-symm (Insertion.sort-perm rs)))
+  }
 
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
