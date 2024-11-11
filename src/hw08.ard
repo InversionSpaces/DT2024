@@ -1,8 +1,11 @@
 \import Algebra.Meta
+\import Arith.Int
 \import Arith.Nat
 \import Data.Bool
 \import Data.List
 \import Data.Or
+\import Logic (Not)
+\import Logic.Meta
 \import Meta
 \import Paths
 \import Paths.Meta
@@ -175,12 +178,77 @@
 \data Paren | Left | Right
 
 \func isBalanced (xs : List Paren) : Bool
-  => {?}
+  => aux xs 0
+  \where {
+    \func aux (xs : List Paren) (balance : Nat) : Bool
+      | nil, 0 => true
+      | nil, suc balance => false
+      | Right :: xs, 0 => false
+      | Right :: xs, suc balance => aux xs balance
+      | Left :: xs, balance => aux xs (suc balance)
+  }
 
 \data Balanced (xs : List Paren) \with
   | nil => nil-balanced
   | :: Left xs => cons-balanced {ys : List Paren} (Balanced ys) (xs = ys ++ Right :: nil)
   | xs => append-balanced {ys zs : List Paren} (Balanced ys) (Balanced zs) (xs = ys ++ zs)
 
+\func split (xs : List Paren)
+            (p : isBalanced xs = true) :
+  \Sigma (ys zs : List Paren)
+         (xs = ys ++ zs)
+         (neys : Not (xs = nil) -> Not (ys = nil))
+         (isBalanced ys = true)
+         (isBalanced zs = true) =>
+  \let (ys, zs, c, neys, pys, pzs) => aux xs 0 p
+  \in (ys, zs, c, neys, pys, pzs)
+  \where {
+    \func aux (xs : List Paren)
+              (balance : Nat)
+              (p : isBalanced.aux xs balance = true) :
+      \Sigma (ys zs : List Paren)
+             (xs = ys ++ zs)
+             (neys : Not (xs = nil) -> Not (ys = nil))
+             (isBalanced.aux ys balance = true)
+             (isBalanced zs = true) \elim xs, balance
+      | nil, 0 => (nil, nil, idp, \lam n => n, idp, idp)
+      | nil, suc balance => \case p
+      | Right :: xs, 0 => \case p
+      | Right :: xs, suc balance =>
+        \let (ys, zs, c, neys, pys, pzs) => aux xs balance p
+        -- Без скобок на лямбду почему-то не парсится...
+        \in (Right :: ys, zs, pmap (:: Right) c, (\lam _ p => \case p), pys, pzs)
+      | Left :: xs, balance =>
+        \let (ys, zs, c, neys, pys, pzs) => aux xs (suc balance) p
+        \in (Left :: ys, zs, pmap (:: Left) c, (\lam _ p => \case p), pys, pzs)
+  }
+
 \func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs
-  => {?}
+  => (forward, backward)
+  \where {
+    \func forward {xs : List Paren} (p : isBalanced xs = true) : Balanced xs => {?}
+      \where {
+        \func aux (xs : List Paren)
+                  (p : isBalanced xs = true)
+                  (fuel : Nat)
+                  (f<l : length xs NatSemiring.< fuel) : Balanced xs \elim xs, fuel
+          | nil, _ => nil-balanced
+          | _, 0 => \case f<l
+          | Right :: _, _ => \case p
+          | Left :: xs, suc fuel =>
+            \let (ys, zs, c, neys, pys, pzs) => split (Left :: xs) p
+            -- Надо докручивать
+            \in \case zs \as zs, idp : _ = zs \with {
+              | nil, p => {?}
+              | z :: zs, p => {?}
+            }
+      }
+
+    \func backward {xs : List Paren} (p : Balanced xs) : isBalanced xs = true \elim xs, p
+      | nil, nil-balanced => idp
+      | Left :: xs, cons-balanced {ys} bys c => {?}
+      | xs1, append-balanced {ys} {zs} bys bzs c =>
+        \let ibys => backward bys
+           | ibzs => backward bzs
+        \in {?}
+  }
