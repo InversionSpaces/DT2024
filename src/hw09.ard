@@ -1,3 +1,4 @@
+\import Arith.Nat
 \import Data.Maybe
 \import Data.Or
 \import Logic (Not)
@@ -16,6 +17,9 @@
 
 \func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
   | var v => no (\lam (_, r) => \case r)
+  | unit => no (\lam (_, r) => \case r)
+  -- Этот кейс нужен чтобы strategy можно были использовать в red-length
+  | app (lam f) a => yes (f >>= maybe a var, beta idp idp)
   | app t1 t2 => \case strategy t1 \with {
     | yes (s, r) => yes (app s t2, app-left r idp)
     | no n1 => \case strategy t2 \with {
@@ -27,7 +31,6 @@
     | yes (s, r) => yes (lam s, red-lam r)
     | no n => no (\lam (s, r) => not-lam n s r)
   }
-  | unit => Decide.no (\lam (_, r) => \case r)
   \where {
     \func not-lam {V : \Set} {t : Term (Maybe V)}
                   (n : Not (\Sigma (s : Term (Maybe V)) (Red1 t s)))
@@ -57,16 +60,23 @@
 
 -- 3. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc acc-app => acc (\lam r => appAccLeft (acc-app (app-left r idp)))
 
-\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s => {?}
+\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a
+  | acc acc-app => acc (\lam r => appAccRight (acc-app (app-right idp r)))
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t => {?}
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
+  | acc acc-lam => acc (\lam r => subLamAcc (acc-lam (red-lam r)))
 
 -- 4. Определите функцию, которая по достижимому терму возвращает длину максимальной цепочки редукций из него.
 
-\func red-length {V : \Set} (t : Term V) (acc : Acc Red1 t) : Nat
-  => {?}
+\func red-length {V : \Set} (t : Term V) (a : Acc Red1 t) : Nat \elim a
+  -- Надеюсь что моя стратегия выбирает самый длинный путь редукции
+  | acc a => \case strategy t \with {
+    | yes (s, r) => suc (red-length s (a r))
+    | no n => 0
+  }
 
 -- 5. Докажите, что нейтральные термы замкнуты относительно редукций.
 
