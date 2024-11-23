@@ -1,9 +1,11 @@
+\import Arith.Nat (pred)
 \import Data.Bool
 \import Data.List
 \import Logic
+\import Meta
 \import Paths
 \import Paths.Meta
-\import lect06 (Decide)
+\import lect06 (Decide, no, yes)
 \import lect10
 
 -- 1. Пусть f : A -> B и g : B -> C ─ некоторые функции.
@@ -103,18 +105,51 @@
   | refl (x = y)
   | inc (R x y)
 
-\func ReflClosure_<-isProp (n m : Nat) : isProp (ReflClosure (\lam x y => So (x < y)) n m) => {?}
+\func ReflClosure_<-isProp (n m : Nat) : isProp (ReflClosure (\lam x y => So (x < y)) n m) =>
+  \lam x y => \case \elim x, \elim y \with {
+--     Почему он отказался выводить аргументы?
+--     Почему если убрать pmap получается ошибка?
+    | refl n=m, refl n=m' => pmap {n = m} (refl {_} {n} {m}) (\case \elim n, \elim n=m \with {
+      | n, idp => \case \elim m, \elim n=m' \with {
+        | m, idp => idp
+      }
+    })
+--     Еще вот так можно, но я не понимаю, как ext это делает
+--     | refl n=m, refl n=m' => pmap refl ext
+    | refl p, inc r => absurd (aux n m p r)
+    | inc r, refl p => absurd (aux n m p r)
+    | inc r, inc r' => pmap inc So-lem
+  }
+  \where {
+    \func aux (n m : Nat) (p : n = m) (s : So (n < m)) : Logic.Empty \elim n, m, p
+      | 0, 0, p => s
+      | suc n, suc m, p => aux n m (pmap pred p) s
+  }
 
-\func ReflClosure_<=-isNotProp (p : \Pi (n m : Nat) -> isProp (ReflClosure LessOrEq n m)) : Empty => {?}
+\func ReflClosure_<=-isNotProp (p : \Pi (n m : Nat) -> isProp (ReflClosure LessOrEq n m)) : Empty =>
+  \case p 0 0 (inc z<=n) (refl idp)
 
 -- 7. Докажите, что если тип A вкладывается в тип B и B является утверждением, то и A является утверждением.
 
-\func sub-isProp {A B : \Type} (f : A -> B) (p : isInj f) (q : isProp B) : isProp A => {?}
+\func sub-isProp {A B : \Type} (f : A -> B) (p : isInj f) (q : isProp B) : isProp A =>
+  \lam x y => p (q (f x) (f y))
 
 -- 8. Докажите, что тип с разрешимым равенством являетя множеством.
 
 \func Dec-isSet {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) : isSet A
-  => {?}
+  => setLem (\lam a a' => \case dec a a' \with {
+    | yes _ => \Sigma
+    | no _ => Logic.Empty
+  }) (\lam _ _ => mcases \with {
+    | yes p => Unit-isProp
+    | no n => Empty-isProp
+  }) (\lam _ => mcases \with {
+    | yes p => ()
+    | no n => absurd (n idp)
+  }) (\lam {_} {_} => mcases \with {
+    | yes p => \lam _ => p
+    | no _ => absurd
+  })
 
 -- 9. Если A и B являются множествами, то A `Or` B тоже является множеством.
 
@@ -122,13 +157,62 @@
   | inl A
   | inr B
 
-\func or-isSet {A B : \Type} (p : isSet A) (q : isSet B) : isSet (Or A B) => {?}
+\func or-isSet {A B : \Type} (p : isSet A) (q : isSet B) : isSet (Or A B) =>
+  setLem (prop A B) (\lam x y => \case \elim x, \elim y \with {
+    | inl a, inl a1 => p a a1
+    | inl a, inr b => Empty-isProp
+    | inr b, inl a => Empty-isProp
+    | inr b, inr b1 => q b b1
+  }) (\lam o => \case \elim o \with {
+    | inl a => idp
+    | inr b => idp
+  }) (\lam {o1} {o2} => \case \elim o1, \elim o2 \with {
+    | inl a, inl a1 => \lam p => pmap inl p
+    | inl a, inr b => absurd
+    | inr b, inl a => absurd
+    | inr b, inr b1 => \lam p => pmap inr p
+  })
+  \where {
+    \func prop (A B : \Type) (o1 o2 : Or A B) : \Type \elim o1, o2
+      | inl a, inl a' => a = a'
+      | inr b, inr b' => b = b'
+      | _, _ => Logic.Empty
+  }
 
 -- 10. Если B x является множеством, то \Pi (x : A) -> B x тоже является множеством.
 
-\func pi-isSet {A : \Type} (B : A -> \Type) (p : \Pi (x : A) -> isSet (B x)) : isSet (\Pi (x : A) -> B x) => {?}
+\func pi-isSet {A : \Type} (B : A -> \Type) (p : \Pi (x : A) -> isSet (B x)) : isSet (\Pi (x : A) -> B x) =>
+  -- Доказал, но что происходит я слабо понимаю
+  setLem prop
+      (\lam x y => unfold prop (forall-isProp (\lam a => x a = y a) (\lam a => p a (x a) (y a))))
+      (\lam _ _ => idp)
+      (\lam p => \lam i a => p a i) -- funExt
+  \where {
+    \func prop {A : \Type} {B : A -> \Type} (f g : \Pi (x : A) -> B x) : \Type
+      => \Pi (x : A) -> f x = g x
+  }
 
 -- 11. Докажите, что если A является множеством, то List A также им является.
 
 \func List-isSet {A : \Type} (pA : isSet A) : isSet (List A)
-  => {?}
+  => setLem prop (prop-isProp pA) prop-refl prop-eq
+  \where {
+    \func prop {A : \Type} (l r : List A) : \Type \elim l, r
+      | nil, nil => \Sigma
+      | a :: l, b :: r => \Sigma (a = b) (prop l r)
+      | _, _ => Logic.Empty
+
+    \func prop-isProp {A : \Type} (pA : isSet A) (l r : List A) : isProp (prop l r) \elim l, r
+      | nil, nil => Unit-isProp
+      | nil, a :: r => Empty-isProp
+      | a :: l, nil => Empty-isProp
+      | a :: l, b :: r => Sigma-isProp (pA a b) (prop-isProp pA l r)
+
+    \func prop-refl {A : \Type} (l : List A) : prop l l \elim l
+      | nil => ()
+      | a :: l => (idp, prop-refl l)
+
+    \func prop-eq {A : \Type} {l r : List A} (p : prop l r) : l = r \elim l, r, p
+      | nil, nil, _ => idp
+      | a :: l, b :: r, (a=b, p) => rewrite a=b (pmap (:: b) (prop-eq p))
+  }
