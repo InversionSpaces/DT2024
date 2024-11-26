@@ -1,26 +1,78 @@
 \import Data.Bool
-\import Logic (<->)
+\import Equiv
+\import Function.Meta
+\import Logic (<->, prop-pi)
+\import Meta
+\import Paths (pmap)
+\import Paths.Meta
+\import lect10 (setLem)
 \import lect11
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
 
-\func trunc-prop {A : \Prop} : Trunc A <-> A => {?}
+\func trunc-prop {A : \Prop} : Trunc A <-> A =>
+  (forward, backward)
+  \where {
+    \func forward {A : \Prop} (t : Trunc A) : A \elim t
+      | trunc a => a
+
+    \func backward {A : \Prop} (a : A) : Trunc A => trunc a
+  }
 
 -- 2. Докажите следующий закон де Моргана.
 
-\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => {?}
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) =>
+  (forward, backward)
+  \where {
+    \func forward {A B C : \Prop} (p : \Sigma A (B `Or` C)) : (\Sigma A B) `Or` (\Sigma A C) \elim p
+      | (a, inl b) => inl (a, b)
+      | (a, inr c) => inr (a, c)
+
+    \func backward {A B C : \Prop} (p : (\Sigma A B) `Or` (\Sigma A C)) : \Sigma A (B `Or` C) \elim p
+      | inl (a, b) => (a, inl b)
+      | inr (a, c) => (a, inr c)
+  }
 
 -- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
 
-\func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
-              (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
-              (p : A `Or` B) : C p => {?}
+\func Or-elim {A B : \Prop}
+              (C : Or A B -> \Prop)
+              (f : \Pi (x : A) -> C (inl x))
+              (g : \Pi (y : B) -> C (inr y))
+              (p : A `Or` B) : C p =>
+  Or-rec (\lam a => transport C prop-pi (f a)) (\lam b => transport C prop-pi (g b)) p
 
 -- 4. Докажите, что тип утверждений является множеством.
 
-\func prop-isSet : isSet \Prop => {?}
+\func prop-isSet : isSet \Prop => \lam _ _ _ _ => prop-pi
 
 -- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2.
+
+\func Prop1=Prop2 : Prop1 = Prop2 =>
+  ext \new QEquiv {
+    | f => Prop1-to-Prop2
+    | ret => Prop2-to-Prop1
+    | ret_f => \lam p1 => unfold (Prop1-to-Prop2, Prop2-to-Prop1) (ret p1)
+    | f_sec => \lam p2 => unfold (Prop1-to-Prop2, Prop2-to-Prop1)
+        (ext (sec p2, ext (\lam x y => prop-isSet p2.2 x y _ _)))
+  } \where {
+  \lemma ret (p : Prop1) : Prop2-to-Prop1' p pathInProp = p =>
+    ext (\lam (inc a) => a, inc)
+
+  \func sec (p : Prop2) : Prop2-to-Prop1' p.1 p.2 = p.1 =>
+    ext (\new QEquiv {
+      -- Не понял что такое \scase и почему он необходим
+      | f => \lam p1 => \scase p1 \return p.1 \with {
+        | inc a => a
+      }
+      | ret => inc
+      | ret_f => \lam (inc _) => pmap inc (p.2 _ _)
+      | f_sec => \lam _ => p.2 _ _
+    })
+
+    \func prop-isSet {A : \Type} (p : isProp A) : isSet A =>
+      setLem (\lam _ _ => A) (\lam _ _ x y => p x y) (\lam a => a) (\lam {a} {a'} _ => p a a')
+}
 
 -- Можно сделать только одно из упражнений 6a,6b на выбор.
 -- 6a. Тип С называется когенератором, если для любых множеств A и B и любых функция f,g : A -> B верно, что если h `o` f = h `o` g для всех h : B -> C, то f = g.
@@ -37,7 +89,8 @@
 
 \func isInj {A B : \Type} (f : A -> B) => \Pi (x y : A) -> f x = f y -> x = y
 
-\func isInjective (X : \Type) => \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l `o` i = f)
+\func isInjective (X : \Type) =>
+  \Pi {A B : \Type} (f : A -> X) (i : A -> B) (p : isInj i) -> \Sigma (l : B -> X) (l `o` i = f)
 
 \func Prop-isInjective : isInjective \Prop => {?}
 
