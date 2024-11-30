@@ -1,9 +1,10 @@
 \import Data.Bool
 \import Equiv
+\import Equiv.Univalence
 \import Function.Meta
 \import Logic (<->, prop-pi)
 \import Meta
-\import Paths (pmap)
+\import Paths (*>, inv, pmap)
 \import Paths.Meta
 \import lect10 (setLem)
 \import lect11
@@ -70,8 +71,8 @@
       | f_sec => \lam _ => p.2 _ _
     })
 
-    \func prop-isSet {A : \Type} (p : isProp A) : isSet A =>
-      setLem (\lam _ _ => A) (\lam _ _ x y => p x y) (\lam a => a) (\lam {a} {a'} _ => p a a')
+  \func prop-isSet {A : \Type} (p : isProp A) : isSet A =>
+    setLem (\lam _ _ => A) (\lam _ _ x y => p x y) (\lam a => a) (\lam {a} {a'} _ => p a a')
 }
 
 -- Можно сделать только одно из упражнений 6a,6b на выбор.
@@ -82,7 +83,8 @@
 
 \func isCogenerator (C : \Type) => \Pi {A B : \Set} (f g : A -> B) (p : \Pi (h : B -> C) -> h `o` f = h `o` g) -> f = g
 
-\func PropIsCogenerator : isCogenerator \Prop => {?}
+\func PropIsCogenerator : isCogenerator \Prop => \lam f _ p =>
+    ext (\lam a => transport (\lam s => s a) (p (\lam b => f a = b)) idp)
 
 -- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
 --     Докажите, что \Prop инъективен.
@@ -97,6 +99,42 @@
 -- Можно сделать только одно из упражнений 7a,7b на выбор.
 -- 7a. Докажите, что (Bool = Bool) = Bool.
 
-\func BoolAut : (Bool = Bool) = Bool => {?}
+\func BoolAut : (Bool = Bool) = Bool => Equiv-to-= b=b-b-eq
+  \where {
+    \func b=b-b-eq : Equiv {Bool = Bool} {Bool} =>
+      rewrite (Equiv-to-= univalence) beb-b-eq
+
+    \func beb-b-eq : Equiv {Equiv {Bool} {Bool}} {Bool} => \new QEquiv {
+      | f (e : Equiv) => e true
+      | ret (b : Bool) => \new QEquiv {
+        | f => bequiv b
+        | ret => bequiv b
+        | ret_f => bequiv-lem b
+        | f_sec => bequiv-lem b
+      }
+      | ret_f (e : Equiv) => Equiv.equals (ext (
+        \lam a => cases (e true arg addPath, e false arg addPath) \with {
+          | false, et=f, false, ef=f => \case Equiv.isInj (et=f *> inv ef=f)
+          | true, et=t, true, ef=t => \case Equiv.isInj (et=t *> inv ef=t)
+          | false, et=f, true, ef=t => \case \elim a \with {
+            | false => inv ef=t
+            | true => inv et=f
+          }
+          | true, et=t, false, ef=f => \case \elim a \with {
+            | false => inv ef=f
+            | true => inv et=t
+          }
+        }))
+      | f_sec (b : Bool) => cases b idp
+    }
+
+    \func bequiv (a b : Bool) : Bool
+      | false, false => true
+      | false, true => false
+      | true, false => false
+      | true, true => true
+
+    \func bequiv-lem (a b : Bool) : bequiv a (bequiv a b) = b => cases (a, b) idp
+  }
 
 -- 7b. Докажите, что (n+m)-элементное множество равно размеченному объединению n- и m-элементных множеств.
