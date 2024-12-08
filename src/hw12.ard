@@ -128,5 +128,30 @@
 
 -- 10. Докажите, что wind инъективна.
 
-\func wind-inj {x y : Int} (p : wind x = wind y) : x = y
-  => {?}
+\func wind-inj {x y : Int} (p : wind x = wind y) : x = y \elim x, y
+  | pos (suc x), pos (suc y) =>
+    pmap (\lam x => pos (suc x)) (poseq (wind-inj (cancelR p)))
+  | neg (suc x), neg (suc y) =>
+    pmap (\lam x => neg (suc x)) (negeq (wind-inj (cancelR p)))
+  | pos zero, pos zero => idp
+  | neg zero, neg zero => idp
+  | pos (suc x), neg zero => {?}
+  | _, _ => {?}
+  \where {
+    \func cancelR {A : \Type} {x y z : A}
+                  {q : x = y} {p s : z = x}
+                  (t : p *> q = s *> q) : p = s \elim q
+      | idp => t
+
+    \func poseq {n m : Nat} (p : pos n = pos m) : n = m =>
+      \lam i => \case p i \with {
+        | pos n => n
+        | neg n => n
+      }
+
+    \func negeq {n m : Nat} (p : neg n = neg m) : n = m =>
+      \lam i => \case p i \with {
+        | pos n => n
+        | neg n => n
+      }
+  }
